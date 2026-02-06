@@ -1,7 +1,7 @@
  import { readdir, readFile } from "fs/promises"
 import path from "path"
 
-interface RawDocument {
+export interface RawDocument {
   path: string
   content: string
 }
