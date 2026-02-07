@@ -2,20 +2,20 @@ import { RawDocument } from "./loader.js"
 import matter from 'gray-matter';
 import path from "path";
 
-interface DocumentMetadata {
+ export interface DocumentMetadata {
   title: string              // From frontmatter or first H1
   sourcePath: string         // Original file path
   sectionPath: string[]      // ["concepts", "workloads", "pods"] from folder structure
   headers: Header[]          // All headers with their levels
 }
 
-interface Header {
+export interface Header {
   level: number    // 1, 2, 3...
   text: string     // "Pod Lifecycle"
   position: number // Character index where it starts
 }
 
-interface ParsedDocument{
+export interface ParsedDocument{
     path : string
     content : string
     metadata : DocumentMetadata
