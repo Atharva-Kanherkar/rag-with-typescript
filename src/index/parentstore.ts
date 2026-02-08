@@ -10,7 +10,7 @@ import { Chunk } from '../ingest/chunker.js';
 const STORE_PATH = './data/parents.json';
 
 // In-memory cache of parents (loaded from disk)
-let parentsCache: Map<string, Chunk> = new Map();
+let parentsCache: Map<number, Chunk> = new Map();
 
 /**
  * Load parents from disk into memory cache
@@ -22,7 +22,9 @@ export async function initParentStore(): Promise<void> {
     const parents: Chunk[] = JSON.parse(data);
     
     for (const parent of parents) {
-      parentsCache.set(parent.id, parent);
+      // Parse ID as number since JSON may store it as string
+      const id = typeof parent.id === 'string' ? parseInt(parent.id) : parent.id;
+      parentsCache.set(id, parent);
     }
     
     console.log(`Loaded ${parentsCache.size} parents from store`);
@@ -40,7 +42,9 @@ export async function initParentStore(): Promise<void> {
 export async function saveParents(parents: Chunk[]): Promise<void> {
   // Add to cache
   for (const parent of parents) {
-    parentsCache.set(parent.id, parent);
+    // Ensure ID is a number
+    const id = typeof parent.id === 'string' ? parseInt(parent.id) : parent.id;
+    parentsCache.set(id, parent);
   }
   
   // Persist to disk
@@ -56,7 +60,7 @@ export async function saveParents(parents: Chunk[]): Promise<void> {
  * @param parentId - The parent chunk ID (e.g., "pod-lifecycle-p0")
  * @returns The parent chunk or null if not found
  */
-export async function getParent(parentId: string): Promise<Chunk | null> {
+export async function getParent(parentId: number): Promise<Chunk | null> {
   return parentsCache.get(parentId) || null;
 }
 
@@ -71,9 +75,9 @@ export async function getParent(parentId: string): Promise<Chunk | null> {
  *   Input:  ["pod-p0", "pod-p0", "deploy-p2"] (from search results)
  *   Output: [{id:"pod-p0",...}, {id:"deploy-p2",...}] (unique, in order)
  */
-export async function getParents(parentIds: string[]): Promise<Chunk[]> {
+export async function getParents(parentIds: number[]): Promise<Chunk[]> {
   // Deduplicate while preserving order
-  const seen = new Set<string>();
+  const seen = new Set<number>();
   const uniqueParents: Chunk[] = [];
   
   for (const id of parentIds) {

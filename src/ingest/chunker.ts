@@ -9,22 +9,22 @@ import { Header, ParsedDocument } from "./metadata.js";
 
  
 interface ParentChunk{
-    id : number;
+    id : string;
     content: string;
     startPosition : number;
       endPosition : number;
     header : Header;
 }
 interface ChildChunk {
-    id : number;
-    parent_id : number;
+    id : string;
+    parent_id : string;
     content : string;
 
 }
 export interface Chunk{
-    id : number;
+    id : string;
     content : string;
-    parent_id : number | null;
+    parent_id : string | null;
     source_file : string;
     section_path : string[];
     chunk_type : "parent" | "child";
@@ -42,7 +42,7 @@ for(let i = 0; i<h2Headers.length; i++){
     const startPosition = header.position;
     const endPosition = nextHeader ? nextHeader.position : doc.content.length;
     const content = doc.content.slice(startPosition, endPosition);
-    const id = generateId();
+    const id = generateId(doc.path, i);
     parents.push({
       id : id, 
       content : content,
@@ -56,11 +56,10 @@ for(let i = 0; i<h2Headers.length; i++){
    return parents;
 }
 
-  // Global counter for unique numeric IDs (Qdrant requires int or UUID)
-  let idCounter = 1;
-
-  function generateId(): number {
-    return idCounter++;
+   function generateId(filePath: string, index: number): string {
+    // Convert "/docs/concepts/pods.md" → "concepts-pods"
+    const normalized = path.basename(filePath, '.md');  // removes .md extension
+    return `${normalized}-p${index}`;  // "pod-lifecycle-p0", "pod-lifecycle-p1"
   }
 
 
@@ -83,7 +82,7 @@ for(let i = 0; i<h2Headers.length; i++){
           else{
               if(currentGroup){
                 children.push({
-                      id: generateId(),
+                      id: `${parent.id}-c${childIndex}`,
                       content : currentGroup.trim(),
                       parent_id : parent.id
                 })
@@ -96,7 +95,7 @@ for(let i = 0; i<h2Headers.length; i++){
         
      if (currentGroup) {
           children.push({
-              id: generateId(),
+              id: `${parent.id}-c${childIndex}`,
               content: currentGroup.trim(),
               parent_id: parent.id
           });
