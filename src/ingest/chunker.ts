@@ -9,22 +9,22 @@ import { Header, ParsedDocument } from "./metadata.js";
 
  
 interface ParentChunk{
-    id : string;
+    id : number;
     content: string;
     startPosition : number;
       endPosition : number;
     header : Header;
 }
 interface ChildChunk {
-    id : string;
-    parent_id : string;
+    id : number;
+    parent_id : number;
     content : string;
 
 }
-interface Chunk{
-    id : string;
+export interface Chunk{
+    id : number;
     content : string;
-    parent_id : string | null;
+    parent_id : number | null;
     source_file : string;
     section_path : string[];
     chunk_type : "parent" | "child";
@@ -42,7 +42,7 @@ for(let i = 0; i<h2Headers.length; i++){
     const startPosition = header.position;
     const endPosition = nextHeader ? nextHeader.position : doc.content.length;
     const content = doc.content.slice(startPosition, endPosition);
-    const id = generateId(doc.path, i);
+    const id = generateId();
     parents.push({
       id : id, 
       content : content,
@@ -56,10 +56,11 @@ for(let i = 0; i<h2Headers.length; i++){
    return parents;
 }
 
-   function generateId(filePath: string, index: number): string {
-    // Convert "/docs/concepts/pods.md" → "concepts-pods"
-    const normalized = path.basename(filePath, '.md');  // removes .md extension
-    return `${normalized}-p${index}`;  // "pod-lifecycle-p0", "pod-lifecycle-p1"
+  // Global counter for unique numeric IDs (Qdrant requires int or UUID)
+  let idCounter = 1;
+
+  function generateId(): number {
+    return idCounter++;
   }
 
 
@@ -82,7 +83,7 @@ for(let i = 0; i<h2Headers.length; i++){
           else{
               if(currentGroup){
                 children.push({
-                      id: `${parent.id}-c${childIndex}`,
+                      id: generateId(),
                       content : currentGroup.trim(),
                       parent_id : parent.id
                 })
@@ -95,7 +96,7 @@ for(let i = 0; i<h2Headers.length; i++){
         
      if (currentGroup) {
           children.push({
-              id: `${parent.id}-c${childIndex}`,
+              id: generateId(),
               content: currentGroup.trim(),
               parent_id: parent.id
           });
@@ -104,7 +105,7 @@ for(let i = 0; i<h2Headers.length; i++){
   }
 
 
-  function chunkDocument( doc : ParsedDocument, strategy : "recursive") : Chunk[] {
+  export function chunkDocument( doc : ParsedDocument, strategy : "recursive") : Chunk[] {
      const chunks : Chunk[] = [];
       const parents = splitIntoParents(doc);
       for(const parent of parents){

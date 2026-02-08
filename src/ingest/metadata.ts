@@ -21,7 +21,7 @@ export interface ParsedDocument{
     metadata : DocumentMetadata
 }
 
-function parseDocument(raw : RawDocument) : ParsedDocument{
+export function parseDocument(raw : RawDocument) : ParsedDocument{
     // 1. Parse frontmatter - separate variables for clarity
     const rawContent = raw.content;
     const parsed = matter(rawContent);

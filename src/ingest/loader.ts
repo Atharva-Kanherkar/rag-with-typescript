@@ -6,7 +6,7 @@ export interface RawDocument {
   content: string
 }
 
-async function loadDocuments(rootDir: string): Promise<RawDocument[]> {
+export async function loadDocuments(rootDir: string): Promise<RawDocument[]> {
    
   const entries = await readdir(rootDir, {
     recursive: true,
