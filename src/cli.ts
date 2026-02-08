@@ -11,6 +11,11 @@ import path from "path";
 import { expandToParents } from "./retrieve/expander.js";
 import { search } from "./retrieve/search.js";
 
+// Phase 4: Generation imports
+import { buildPrompt, buildCitationLegend } from "./generate/prompt.js";
+import { processAnswer } from "./generate/citation.js";
+import { checkApiKey, generateAnswer, generateAnswerStreaming } from "./generate/llm.js";
+
 const program = new Command();
 
 program
@@ -86,47 +91,90 @@ program
     console.log("✅ Indexing complete!");
   });
 
-   program
-    .command("query")
-    .description("Query the indexed documents")
-    .requiredOption("-q, --question <text>", "Your question")
-    .option("-k, --topK <number>", "Number of results", "10")
-    .action(async (options) => {
-      console.log(`🔍 Query: "${options.question}"\n`);
+program
+  .command("query")
+  .description("Query the indexed documents (Phases 3+4)")
+  .requiredOption("-q, --question <text>", "Your question")
+  .option("-k, --topK <number>", "Number of results", "10")
+  .option("--stream", "Stream the answer (show as it generates)", false)
+  .action(async (options) => {
+    console.log(`🔍 Query: "${options.question}"\n`);
 
-      // 1. Initialize
-      console.log("⚡ Initializing...");
-      await initEmbedder();
-      await initParentStore();
-      // Note: Vector DB client is already initialized in searchChunks
+    // 1. Check API key before starting
+    try {
+      checkApiKey();
+    } catch (e: any) {
+      console.error(`❌ ${e.message}`);
+      process.exit(1);
+    }
 
-      // 2. Search
-      console.log("🔎 Searching vector DB...");
-      const searchResults = await search(options.question, parseInt(options.topK));
-      console.log(`   Found ${searchResults.length} child chunks\n`);
+    // 2. Initialize
+    console.log("⚡ Initializing...");
+    await initEmbedder();
+    await initParentStore();
 
-      // 3. Expand to parents
-      console.log("📚 Fetching parent context...");
-      const parents = await expandToParents(searchResults);
-      console.log(`   Expanded to ${parents.length} unique parents\n`);
+    // 3. Search
+    console.log("🔎 Searching vector DB...");
+    const searchResults = await search(options.question, parseInt(options.topK));
+    console.log(`   Found ${searchResults.length} child chunks\n`);
 
-      // 4. Print results (Phase 3 complete!)
+    if (searchResults.length === 0) {
+      console.log("❌ No relevant documents found. Try a different query.");
+      return;
+    }
+
+    // 4. Expand to parents
+    console.log("📚 Fetching parent context...");
+    const parents = await expandToParents(searchResults);
+    console.log(`   Expanded to ${parents.length} unique parents\n`);
+
+    // 5. Build prompt
+    console.log("📝 Building prompt...");
+    const prompt = buildPrompt(options.question, parents);
+
+    // 6. Generate answer
+    console.log("🤖 Asking Claude...\n");
+    console.log("=".repeat(60));
+    console.log("ANSWER:");
+    console.log("=".repeat(60) + "\n");
+
+    let response: string;
+
+    if (options.stream) {
+      // Streaming mode - show answer as it arrives
+      response = await generateAnswerStreaming(prompt, (chunk) => {
+        process.stdout.write(chunk);
+      });
+      console.log("\n"); // Newline after streaming
+    } else {
+      // Non-streaming - wait for complete answer
+      response = await generateAnswer(prompt);
+      console.log(response);
+    }
+
+    // 7. Process citations
+    console.log("\n" + "=".repeat(60));
+    const answer = processAnswer(response, parents.length);
+    
+    if (answer.uniqueCitations.length > 0) {
+      console.log("SOURCES:");
       console.log("=".repeat(60));
-      console.log("RETRIEVED CONTEXT:");
-      console.log("=".repeat(60) + "\n");
-
-      for (let i = 0; i < parents.length; i++) {
-        const parent = parents[i];
-        console.log(`\n[${i + 1}] Source: ${parent.source_file}`);
-        console.log(`    Section: ${parent.section_path.join(" > ")}`);
-        console.log(`\n${parent.content.slice(0, 500)}...`);
-        console.log("\n" + "-".repeat(40) + "\n");
+      
+      const legend = buildCitationLegend(parents);
+      for (const citationNum of answer.uniqueCitations) {
+        const entry = legend[citationNum - 1];
+        if (entry) {
+          console.log(`[${citationNum}] ${entry.section}`);
+          console.log(`    ${entry.source}`);
+        }
       }
+    }
 
-      console.log(`\n✅ Retrieved ${parents.length} parent sections for context`);
-    });
-
-
+    console.log("\n" + "-".repeat(60));
+    console.log(`Confidence: ${answer.confidence.toUpperCase()}`);
+    console.log(`Citations used: ${answer.uniqueCitations.length}/${parents.length} documents`);
+    console.log("-".repeat(60));
+  });
 
 program
   .command("eval")
